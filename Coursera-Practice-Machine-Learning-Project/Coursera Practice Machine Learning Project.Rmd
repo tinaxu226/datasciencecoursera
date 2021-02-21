@@ -1,0 +1,145 @@
+---
+title: "Practical Machine Learning Project"
+author: "Ting Xu"
+date: "1/24/2021"
+output:
+  html_document: default
+  word_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Background
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset).
+
+## Data Checking
+
+The training data for this project are available here:
+
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv
+
+The test data are available here:
+
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv
+
+Loading data:
+
+```{r load data, warning=FALSE, message=FALSE, echo=TRUE}
+training = read.csv("./pml-training.csv",na.strings=c("NA","#DIV/0!",""))
+testing = read.csv("./pml-testing.csv",na.strings=c("NA","#DIV/0!",""))
+```
+
+First look at the data:
+```{r message=FALSE, echo=TRUE}
+# Data dimensions
+dim(training)
+dim(testing)
+```
+
+## Cross-validation will be performed by spliting the training dataset
+
+```{r message=FALSE, echo=TRUE}
+# load packages
+library(caret)
+library(randomForest)
+```
+
+First we index for training dataset and testing dataset from the pml-training data set:
+
+1) A training dataset, containing 70% of the observations. The models for prediction will be built using this dataset.
+
+2) A testing dataset, containing 30% of the observations. The accuracy of our prediction models will be evaluated using this dataset.
+
+
+```{r message=FALSE, echo=TRUE}
+set.seed(12345)
+inTrain = createDataPartition(y=training$classe,p=0.7, list=FALSE)
+# training dataset
+df.train = training[inTrain,]
+# testing dataset
+df.test = training[-inTrain,]
+```
+
+We total have 160 variables. However, not all variables are relevent in the prediction. Therefore, we will have to perform data cleaning, where we are going to remove the NA's, the Near Zero Variance(NZR), and the ID variables.
+
+```{r message=FALSE, echo=TRUE}
+# remove columns only contain NA's
+df.train <- df.train[, colSums(is.na(df.train)) == 0]
+df.test <- df.test[, colSums(is.na(df.test)) == 0]
+# remove the Near Zero Variance columns
+NZV <- nearZeroVar(df.train)
+df.train <- df.train[,-NZV]
+df.test <- df.test[,-NZV]
+# remove ID variables
+df.train <- df.train[,-(1:5)]
+df.test <- df.test[,-(1:5)]
+# check dimention
+dim(df.train)
+dim(df.test)
+```
+
+After data cleaning, we will have 54 variables for the analysis.
+
+
+
+## Build prediction model
+
+#### Frist we conduct the prediction model with Random Forest.
+
+```{r message=FALSE, echo=TRUE}
+
+# Build model
+set.seed(12345)
+rf.fit = randomForest(
+  classe ~ .,
+  data = df.train,
+  ntree = 250)
+# Plot the Random Forests model
+plot(rf.fit)
+```
+
+
+Then we predict using random forest.
+
+```{r message=FALSE, echo=TRUE}
+
+# Predict with random forest model
+pred.rf <- predict(rf.fit, df.test)
+# Get results (Accuracy, etc.)
+result.rf <- confusionMatrix(pred.rf, df.test$classe)
+result.rf
+```
+
+The accuracy of the random forest model is 0.9947, which is very high as expected.
+
+### Next we use Decision Tree model for prediction
+
+```{r, cache=TRUE, message=FALSE}
+#Build the tree
+mod.rpart <- train(classe ~., data = df.train, method = "rpart")
+plot(mod.rpart)
+```
+
+```{r, cache=TRUE, message=FALSE}
+#Predict using decision tree
+pred.rpart <- predict(mod.rpart, df.test)
+result.rpart <- confusionMatrix(pred.rpart, df.test$classe)
+result.rpart 
+```
+
+The accuracy of the decision tree model is 0.5237, which is lower than that of random forest. Hence, we will use  Random Forest modelfor predicting the 20 observations of the original pml-testing.csv dataset.
+
+
+### Get Result
+
+Lastly, we get predictions for the 20 observations of the original pml-testing.csv using Random Forest modet
+
+```{r warning=FALSE, message=FALSE}
+pred.validation = predict(rf.fit, testing)
+pred.validation
+```
+
+
